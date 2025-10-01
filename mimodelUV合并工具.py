@@ -1,10 +1,10 @@
-import json,math,pyperclip
+import json,pyperclip
 import sys,os,shutil
 import tkinter as tk
 import tkinter.ttk as ttk
 import tkinter.font as tkfont
 from tkinter import filedialog
-import win32api,win32con,ctypes
+import win32api,win32con,ctypes,webbrowser
 from PIL import Image,ImageTk,ImageDraw,ImageColor
 
 if getattr(sys, 'frozen', None):
@@ -520,7 +520,7 @@ def exit_app(event=None):
     root.destroy()
     sys.exit()
 root=tk.Tk()
-root.title('mimodelUV合并')
+root.title('mimodelUV合并工具')
 width=510
 height=320
 screenwidth = root.winfo_screenwidth()
@@ -531,7 +531,7 @@ root.resizable(0,0)
 root.bind('<Escape>',exit_app)
 root.focus()
 
-tk.Label(root,text='顶层part可能出现贴图设定错误,手动修改即可.',anchor='w',fg="#C90000").place(x=20,y=270,width=250,height=30)
+tk.Label(root,text='顶层part可能出现贴图设定错误,手动修改即可.',anchor='w',fg="#C90000").place(x=20,y=270,width=380,height=30)
 
 
 tk.Label(root,text='原mimodel文件路径: ',anchor='w').place(x=20,y=20,width=170,height=30)
@@ -573,11 +573,11 @@ Button_browse_new_texture_file.place(x=450,y=120,width=40,height=30)
 
 
 def show_about():
-    pyperclip.copy(r"https://drive.google.com/drive/folders/1jY9AA1xWP7xYr5TWWT6LXNY2peWHUKCN?usp=drive_link")
-    Message_Box_Auto(parent=root,title='关于',text='Copyright ©2025 炸图监管者 All rights reserved.\n本程序遵循GNU AGPL v3开源协议.\n详情参见: https://www.gnu.org/licenses/agpl-3.0.html\n最新下载链接已复制到剪切板.',icon='info')
+    #pyperclip.copy(r"https://drive.google.com/drive/folders/1jY9AA1xWP7xYr5TWWT6LXNY2peWHUKCN?usp=drive_link")
+    #Message_Box_Auto(parent=root,title='关于',text='Copyright ©2025 炸图监管者 All rights reserved.\n本程序遵循GNU AGPL v3开源协议.\n详情参见: https://www.gnu.org/licenses/agpl-3.0.html\n最新下载链接已复制到剪切板.',icon='info')
+    webbrowser.open('https://github.com/zhatujianguanzhe/modelbench-tools')
     
-    
-Button_infos=ttk.Button(root,text='关于',takefocus=False,command=show_about)
+Button_infos=ttk.Button(root,text='Github',takefocus=False,command=show_about)
 Button_infos.place(x=320,y=170,width=70,height=30)
 
 

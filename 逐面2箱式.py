@@ -4,7 +4,7 @@ import tkinter as tk
 import tkinter.ttk as ttk
 import tkinter.font as tkfont
 from tkinter import filedialog
-import win32api,win32con,ctypes
+import win32api,win32con,ctypes,webbrowser
 from PIL import Image,ImageTk
 if getattr(sys, 'frozen', None):
     res_icon_folder = sys._MEIPASS.replace(r'\\','/').replace('\\',r'\\')+'/icons/'
@@ -615,7 +615,7 @@ Button_start.place(x=410,y=320,width=80,height=30)
 
 
 
-Button_infos=ttk.Button(root,text='关于',takefocus=False,command=lambda: Message_Box_Auto(parent=root,title='关于',text='Copyright ©2025 炸图监管者 All rights reserved.\n本程序遵循 GNU AGPL v3 开源协议.详情参见https://www.gnu.org/licenses/agpl-3.0.html',icon='info'))
+Button_infos=ttk.Button(root,text='Github',takefocus=False,command=lambda: webbrowser.open('https://github.com/zhatujianguanzhe/modelbench-tools'),)
 Button_infos.place(x=320,y=220,width=70,height=30)
 
 Button_no_dpi=ttk.Button(root,text='清晰界面',takefocus=False,command=lambda: ctypes.windll.shcore.SetProcessDpiAwareness(1))
