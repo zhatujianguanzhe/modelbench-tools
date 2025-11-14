@@ -1,0 +1,1375 @@
+import os,sys
+import tkinter as tk
+import tkinter.ttk as ttk
+import tkinter.font as tkfont
+from tkinter import filedialog
+import win32api,win32con
+from PIL import Image,ImageTk,ImageDraw,ImageColor
+import webbrowser
+import json,math,ctypes
+
+#ctypes.windll.shcore.SetProcessDpiAwareness(1)#1禁用,0默认
+
+
+if getattr(sys, 'frozen', None):
+    res_icon_folder = sys._MEIPASS.replace(r'\\','/').replace('\\',r'\\')+'/icons/'
+else:
+    res_icon_folder = os.path.dirname(__file__).replace(r'\\','/').replace('\\',r'\\')+'/icons/'
+
+
+class LinkLabel(tk.Label):
+    def __init__(self, master, url='',command=None,**kw):
+        super().__init__(master,**kw)
+        self.url = url
+        self.command = command
+        self.create_LinkLabel()
+        self.clicked=False
+
+    def add_underline(self,label_widget):
+        """
+        为给定的 Tkinter Label widget 添加下划线效果，而不改变其他字体属性。
+        """
+        # 获取当前 Label 的字体配置
+        current_font = tkfont.Font(font=label_widget.cget("font"))
+
+        # 创建一个新的字体对象，基于当前字体，并设置下划线为 True
+        new_font = tkfont.Font(
+            family=current_font["family"],
+            size=current_font["size"],
+            weight=current_font["weight"],
+            slant=current_font["slant"],
+            underline=True,  # 只将下划线设置为 True
+            overstrike=current_font["overstrike"],)
+        # 将新的字体应用到 Label
+        label_widget.config(font=new_font)
+
+    def create_LinkLabel(self):
+        self.config(fg="#0000EE",cursor='hand2')
+        self.add_underline(self)
+        self.bind("<Button-1>", self.on_click)
+        self.bind("<Enter>", self.enter_label)
+        self.bind("<Leave>", self.leave_label)
+
+    def on_click(self, event):
+        self.clicked=True
+        if self.command is not None:
+            self.config(fg='#0000EE')
+            self.command()
+        else:
+            self.config(fg='#551a8b')
+            webbrowser.open_new_tab(self.url)
+    
+    def enter_label(self,event):
+        self.config(fg="#0056b3")
+
+    def leave_label(self,event):
+        if self.clicked==True:
+            self.config(fg='#551a8b')
+        else:
+            self.config(fg='#0000EE')
+
+def Message_Box_Auto(parent=None, text='', title='', icon='none',text_true='确定',text_false='取消', buttonmode=1, defaultfocus=1):
+    # 辅助函数：更精确地计算文本高度（改进版）
+    def calculate_text_height_with_font(text_content, wraplength_val, font_object):
+        """
+        根据文本内容、换行宽度和字体对象估算文本在 Tkinter Label 中所需的像素高度。
+        确保返回的高度至少为 90 像素，并增加更多缓冲。
+        """
+        # 确保最小高度
+        MIN_LABEL_HEIGHT = 90 # 确保标签至少有 90 像素高
+
+        if not text_content:
+            return MIN_LABEL_HEIGHT # 空文本也至少有 MIN_LABEL_HEIGHT 像素高
+
+        lines = 0
+        current_line_width = 0
+        
+        # Splitting by words and then by '\n' allows for better handling of both automatic and manual wraps
+        # We will process each 'part' which is either a word or a segment after a manual newline.
+        parts_with_newlines_handled = []
+        for segment in text_content.split('\n'):
+            words_in_segment = segment.split(' ')
+            parts_with_newlines_handled.extend(words_in_segment)
+            parts_with_newlines_handled.append('\n') # Mark a manual newline
+
+        # Remove the last '\n' if the original text didn't end with one, to avoid an extra blank line.
+        if text_content and not text_content.endswith('\n'):
+            parts_with_newlines_handled.pop()
+
+        for i, part in enumerate(parts_with_newlines_handled):
+            if part == '\n':
+                lines += 1
+                current_line_width = 0
+                continue # Move to the next part
+
+            part_width = font_object.measure(part)
+            
+            # If adding this part exceeds wraplength AND it's not the very first part of a new line, wrap
+            if current_line_width + part_width > wraplength_val and current_line_width != 0:
+                lines += 1
+                current_line_width = part_width
+            else:
+                current_line_width += part_width # Add current part's width
+            
+            # Add space for the gap between words, but only if it's not the last word in the line
+            # This needs careful handling to not add extra space after the last word if it wraps.
+            # Simple approach for now: add space after each word.
+            if i < len(parts_with_newlines_handled) -1 and parts_with_newlines_handled[i+1] != '\n':
+                current_line_width += font_object.measure(' ')
+
+
+        # If there's any content left on the last line, count it
+        if current_line_width > 0 or not text_content: # Ensure at least one line for non-empty text
+            lines += 1
+
+        # Ensure at least one line is counted for very short text
+        if lines == 0:
+            lines = 1
+                
+        line_height = font_object.metrics('linespace')
+
+        # **重要修改：增加更多的缓冲像素**
+        # 20-30 像素的缓冲通常是比较安全的，用于Label的默认padding和渲染微小误差
+        BUFFER_PIXELS = 25
+        
+        # 确保返回的高度至少为 MIN_LABEL_HEIGHT 像素
+        return max(MIN_LABEL_HEIGHT, int(lines * line_height) + BUFFER_PIXELS)
+
+    def set_image(tk_label, img_path, img_size=None):
+        img_open = Image.open(img_path)
+        if img_size:
+            max_width, max_height = img_size
+            img_w, img_h = img_open.size
+            scale = min(max_width / img_w, max_height / img_h, 1)
+            img_open = img_open.resize((int(img_w * scale), int(img_h * scale)), Image.LANCZOS)
+        img = ImageTk.PhotoImage(img_open)
+        tk_label.config(image=img)
+        tk_label.image = img
+
+    def close_Message_Box_window():
+        if parent:
+            parent.attributes('-disabled', 'false')
+        Message_Box_window.destroy()
+        if parent:
+            parent.focus_set()
+
+    def return_value(value):
+        nonlocal rtn
+        rtn = value
+        close_Message_Box_window()
+
+    def handle_key(event):
+        focused = Message_Box_window.focus_get()
+        if event.keysym == 'Escape':  # If ESC key is pressed, return None
+            return_value(None)
+        elif focused in (ok_button, None):
+            return_value(True)
+        elif focused == cancel_button:
+            return_value(False)
+
+    def update_button_focus(event=None):
+        if buttonmode == 2:
+
+            if Message_Box_window.focus_get() == cancel_button:
+                ok_button['default'], cancel_button['default'] = 'normal', 'active'
+            else:# Message_Box_window.focus_get() == ok_button:
+                ok_button['default'], cancel_button['default'] = 'active', 'normal'
+    # 初始化 rtn
+    rtn = None
+
+    # 窗口初始化
+    Message_Box_window = tk.Toplevel(parent) if parent else tk.Tk()
+    Message_Box_window.title(title)
+    initial_window_width = 390
+    initial_window_height = 170 # This is a placeholder, will be updated later
+    
+    Message_Box_window.geometry(f'{initial_window_width}x{initial_window_height}+'
+                                f'{(Message_Box_window.winfo_screenwidth() - initial_window_width) // 2}+'
+                                f'{(Message_Box_window.winfo_screenheight() - initial_window_height) // 2}')
+    
+    Message_Box_window.resizable(False, False)
+    Message_Box_window.protocol("WM_DELETE_WINDOW", close_Message_Box_window)
+    Message_Box_window.focus_set()
+
+    if parent:
+        parent.attributes('-disabled', 'true')
+        Message_Box_window.wm_transient(parent)
+
+    label_icon = tk.Label(Message_Box_window, anchor='center')
+    label_icon.place(x=20, y=20, width=45, height=45)
+
+    TEXT_LABEL_X = 80
+    TEXT_LABEL_Y = 20
+    TEXT_LABEL_WRAPLENGTH = 282
+
+    text_text = tk.Label(Message_Box_window, wraplength=TEXT_LABEL_WRAPLENGTH, text=text, justify='left', anchor='nw',)
+    
+    # Get the actual font used by the Label for measurement
+    # It's crucial to get the font AFTER the label is created
+    temp_label_for_font_measure = tk.Label(Message_Box_window) # Create a temporary label to get the default font
+    actual_font_for_measure = tkfont.Font(font=temp_label_for_font_measure.cget('font')) # Get the font object
+    temp_label_for_font_measure.destroy() # Destroy the temporary label
+
+    # Calculate the required text label height
+    calculated_text_height = calculate_text_height_with_font(text_content=text, 
+                                                             wraplength_val=TEXT_LABEL_WRAPLENGTH,
+                                                             font_object=actual_font_for_measure)
+
+    TEXT_LABEL_HEIGHT = calculated_text_height
+
+    text_text.place(x=TEXT_LABEL_X, y=TEXT_LABEL_Y, width=290, height=TEXT_LABEL_HEIGHT)
+
+    if icon != 'none':
+        set_image(label_icon, f"{res_icon_folder}/{icon}.ico", img_size=(45, 45))
+
+    BUTTON_HEIGHT = 30
+    BUTTON_TOP_MARGIN = 15 # 10/20均可  Space between text label bottom and button top
+    
+    buttons_y = TEXT_LABEL_Y + TEXT_LABEL_HEIGHT + BUTTON_TOP_MARGIN
+
+    WINDOW_BOTTOM_MARGIN = 20 # Keep consistent with top margin
+    new_window_height = buttons_y + BUTTON_HEIGHT + WINDOW_BOTTOM_MARGIN
+
+    Message_Box_window.geometry(f'{initial_window_width}x{new_window_height}+'
+                                f'{(Message_Box_window.winfo_screenwidth() - initial_window_width) // 2}+'
+                                f'{(Message_Box_window.winfo_screenheight() - new_window_height) // 2}')
+
+    if buttonmode == 1:
+        Message_Box_window.bind('<Escape>', handle_key)
+        Message_Box_window.bind('<Return>', handle_key)
+        ok_button = ttk.Button(Message_Box_window, text=text_true, command=lambda: return_value(True), default='active')
+        ok_button.place(x=290, y=buttons_y, width=80, height=30)
+        ok_button.focus()
+    elif buttonmode == 2:
+        Message_Box_window.bind('<Escape>', lambda e: return_value(None))
+        Message_Box_window.bind('<Return>', handle_key)
+
+        Var_dont_warn=tk.BooleanVar()
+        Var_dont_warn.set(True)
+        Checkbutton_dont_warn=ttk.Checkbutton(Message_Box_window,text='保持选择,不再弹出.',style='Warning.TCheckbutton',onvalue=True,offvalue=False,variable=Var_dont_warn)
+        Checkbutton_dont_warn.bind('<Return>',lambda e:Checkbutton_dont_warn.invoke())
+        
+        ok_button = ttk.Button(Message_Box_window, text=text_true, command=lambda: return_value(True), )
+        ok_button.place(x=190, y=buttons_y, width=80, height=30)
+
+        cancel_button = ttk.Button(Message_Box_window, text=text_false, command=lambda: return_value(False))
+        cancel_button.place(x=290, y=buttons_y, width=80, height=30)
+
+        ok_button.bind("<FocusIn>", update_button_focus)
+        cancel_button.bind("<FocusIn>", update_button_focus)
+        ok_button.bind("<FocusOut>", update_button_focus)
+        cancel_button.bind("<FocusOut>", update_button_focus)
+
+        (ok_button if defaultfocus == 1 else cancel_button).focus()
+        (ok_button if defaultfocus == 1 else cancel_button)['default']='active'
+    else:
+        raise ValueError("buttonmode 只能为 1 或 2")
+
+
+
+    beep_map = {
+        'question': win32con.MB_ICONQUESTION, 'safe_question': win32con.MB_ICONQUESTION,
+        'error': win32con.MB_ICONERROR, 'modern_error': win32con.MB_ICONERROR,
+        'safe_error': win32con.MB_ICONERROR, 'word_error_red': win32con.MB_ICONERROR,
+        'word_deny': win32con.MB_ICONERROR, 'warning': win32con.MB_ICONWARNING,
+        'safe_warning': win32con.MB_ICONWARNING, 'word_correct_orange': win32con.MB_ICONWARNING,
+        'modern_warning': win32con.MB_ICONWARNING, 'uac': win32con.MB_ICONWARNING,
+        'info': win32con.MB_ICONINFORMATION, 'word_correct_green': win32con.MB_ICONINFORMATION,
+        'safe_correct': win32con.MB_ICONINFORMATION, 'modern_correct': win32con.MB_ICONINFORMATION,
+        'modern_correct_gray': win32con.MB_ICONINFORMATION, 'none': 0
+    }
+
+    win32api.MessageBeep(beep_map.get(icon, 0))
+    Message_Box_window.wm_iconbitmap(f"{res_icon_folder}icon.ico")
+    Message_Box_window.wait_window(Message_Box_window)
+    return rtn
+
+def Input_Box_Auto(title='', text='', parent=None, default='', canspace=True, canempty=False):
+    rt = None
+
+    def calculate_label_width_with_font(text_content, font_object, min_width=80, buffer_pixels=20):
+        """
+        根据文本内容和字体对象估算标签所需的像素宽度，返回值至少为 min_width，并加 buffer。
+        """
+        if not text_content:
+            return min_width
+        # 计算每一行的宽度（考虑换行）
+        lines = text_content.split('\n')
+        max_line_width = max(font_object.measure(line) for line in lines)
+        return max(min_width, max_line_width + buffer_pixels)
+    def close_handler():
+        if parent:
+            parent.attributes('-disabled', 'false')
+        Input_Box_Auto_window.destroy()
+        if parent:
+            parent.focus_set()
+
+    def close_handler_cancel():
+        nonlocal rt
+        rt = None
+        close_handler()
+
+    def save():
+        nonlocal rt
+        rt = entry_filename.get().strip()
+
+        if not canspace and ' ' in rt:
+            win32api.MessageBeep()
+            entry_filename.focus()
+        elif canempty or rt:
+            close_handler()
+        else:
+            win32api.MessageBeep()
+            entry_filename.focus()
+
+    def save_(event=None):
+        focused = Input_Box_Auto_window.focus_get()
+        if focused in (save_btn, None):
+            save()
+        elif focused == close_btn:
+            close_handler_cancel()
+        else:
+            save()
+
+    def update_button_focus(event=None):
+        if Input_Box_Auto_window.focus_get() == save_btn:
+            save_btn['default'], close_btn['default'] = 'active', 'normal'
+        elif Input_Box_Auto_window.focus_get() == close_btn:
+            save_btn['default'], close_btn['default'] = 'normal', 'active'
+
+    # 创建窗口
+    Input_Box_Auto_window = tk.Toplevel(parent) if parent else tk.Tk()
+    Input_Box_Auto_window.title(title)
+    Input_Box_Auto_window.geometry(f'420x120+{(Input_Box_Auto_window.winfo_screenwidth() - 420) // 2}+{(Input_Box_Auto_window.winfo_screenheight() - 120) // 2}')
+    Input_Box_Auto_window.resizable(False, False)
+    Input_Box_Auto_window.protocol("WM_DELETE_WINDOW", close_handler_cancel)
+    Input_Box_Auto_window.bind('<Return>', save_)
+    Input_Box_Auto_window.bind('<Escape>', lambda e: close_handler_cancel())
+
+    if parent:
+        parent.attributes('-disabled', 'true')
+        Input_Box_Auto_window.wm_transient(parent)
+
+    # UI 组件
+   
+    # 获取字体对象
+    temp_label = tk.Label(Input_Box_Auto_window)
+    actual_font = tkfont.Font(font=temp_label.cget('font'))
+    temp_label.destroy()
+
+    # 计算标签宽度
+    LABEL_MIN_WIDTH = 80
+    label_width = calculate_label_width_with_font(text, actual_font, min_width=LABEL_MIN_WIDTH, buffer_pixels=20)
+    entry_width = 380 - label_width  # 总宽度420减去左右边距和标签宽度
+
+    tk.Label(Input_Box_Auto_window, text=text, anchor="w").place(x=20, y=20, width=label_width, height=30)
+    entry_filename = ttk.Entry(Input_Box_Auto_window, takefocus=True)
+    entry_filename.place(x=20 + label_width, y=20, width=entry_width, height=30)
+    entry_filename.insert(0, default)
+    entry_filename.focus()
+
+    save_btn = ttk.Button(Input_Box_Auto_window, text="确定", command=save, default='active')
+    save_btn.place(x=220, y=70, width=80, height=30)
+
+    close_btn = ttk.Button(Input_Box_Auto_window, text="取消", command=close_handler_cancel)
+    close_btn.place(x=320, y=70, width=80, height=30)
+
+    save_btn.bind("<FocusIn>", update_button_focus)
+    save_btn.bind("<FocusOut>", update_button_focus)
+    close_btn.bind("<FocusIn>", update_button_focus)
+    close_btn.bind("<FocusOut>", update_button_focus)
+
+    Input_Box_Auto_window.wm_iconbitmap(f"{res_icon_folder}/icon.ico")
+    Input_Box_Auto_window.wait_window(Input_Box_Auto_window)
+
+    return rt
+
+
+
+
+
+def MimodelUVMmergeTool():
+    global all_texture_dict
+    all_texture_dict={}
+    def traverse_parts_shapes_set_temp_texture_key(data, parent_texture=None):
+        global all_texture_dict
+        current_texture = data.get('texture', parent_texture)
+        
+        if "shapes" in data and isinstance(data["shapes"], list):
+            shapes = data['shapes']
+            for i, shape in enumerate(data["shapes"]):
+                # 确保shape有texture属性
+                if 'texture' not in shape:
+                    #shape['texture'] = current_texture
+                    shape['temp_texture'] = current_texture
+                if current_texture not in all_texture_dict:
+                    all_texture_dict[current_texture] = None
+                shapes[i] = shape
+        
+        if "parts" in data and isinstance(data["parts"], list):
+            parts = data['parts']
+            for i, subpart in enumerate(data["parts"]):
+                if 'texture' not in subpart:
+                #   subpart['texture'] = current_texture
+                    subpart['temp_texture'] = current_texture
+                if current_texture not in all_texture_dict:
+                    all_texture_dict[current_texture] = None
+                parts[i] = subpart
+                traverse_parts_shapes_set_temp_texture_key(subpart, parent_texture=current_texture)
+        return all_texture_dict       
+
+    def traverse_shapes_set_uv_offset(part):
+        global all_texture_offset_dict,new_texture_img
+        # 如果有 shapes 列表，处理它
+        if 'shapes' in part and isinstance(part['shapes'], list):
+            shapes = part['shapes']
+            for i, shape in enumerate(shapes):
+
+                shape['uv']=[shape['uv'][0]+all_texture_offset_dict[shape['temp_texture'] if 'texture' not in shape else shape['texture']][0],
+                            shape['uv'][1]]
+            new_shape = shape  
+            shapes[i] = new_shape  # 写回原数据
+
+        # 如果有子 parts，递归处理
+        if 'parts' in part and isinstance(part['parts'], list):
+            for subpart in part['parts']:
+                traverse_shapes_set_uv_offset(subpart)
+
+    def traverse_parts_delete_texture_key(part):
+        # 如果有子 parts，递归处理
+        if 'parts' in part and isinstance(part['parts'], list):
+            parts=part['parts']
+            for i, subpart in enumerate(parts):
+                if 'texture' in subpart:
+                    del subpart['texture']
+                parts[i] = subpart  # 写回原数据
+                traverse_parts_delete_texture_key(subpart)
+
+    def run_MimodelUVMmergeTool(event=None):
+        global all_texture_dict,all_texture_offset_dict,new_texture_img
+        all_texture_dict={}
+        all_texture_offset_dict={}
+
+        original_mimodel_file=Entry_original_mimodel_file.get().strip().replace('\\','/')
+
+        new_mimodel_file=Entry_new_mimodel_file.get().strip().replace('\\','/')
+        new_texture_file=Entry_new_texture_file.get().strip().replace('\\','/')
+        
+        if original_mimodel_file.replace(' ','')=='': Message_Box_Auto(parent=Window_MimodelUVMmergeTool,title='错误',text='未选择原mimodel文件.',icon='error');Entry_original_mimodel_file.focus_set();return
+        
+        if new_mimodel_file.replace(' ','')=='': Message_Box_Auto(parent=Window_MimodelUVMmergeTool,title='错误',text='未选择新mimodel文件.',icon='error');Entry_new_mimodel_file.focus_set();return
+        if new_texture_file.replace(' ','')=='': Message_Box_Auto(parent=Window_MimodelUVMmergeTool,title='错误',text='未选择新贴图文件.',icon='error');Entry_new_texture_file.focus_set();return
+        if not os.path.exists(original_mimodel_file): Message_Box_Auto(parent=Window_MimodelUVMmergeTool,title='错误',text='原mimodel文件不存在.',icon='error');Entry_original_mimodel_file.focus_set();return
+        
+        if os.path.exists(new_mimodel_file): Message_Box_Auto(parent=Window_MimodelUVMmergeTool,title='错误',text='新mimodel型文件已存在.',icon='error');Entry_new_mimodel_file.focus_set();return
+        if os.path.exists(new_texture_file): Message_Box_Auto(parent=Window_MimodelUVMmergeTool,title='错误',text='新贴图文件已存在.',icon='error');Entry_new_texture_file.focus_set();return
+        try:
+            for child in Window_MimodelUVMmergeTool.winfo_children():
+                if child.winfo_class()=='TButton':
+                    child.config(state='disabled')
+                elif child.winfo_class()=='TSpinbox' or child.winfo_class()=='TEntry':
+                    child.config(state='readonly')
+            Window_MimodelUVMmergeTool.update()
+
+            with open(original_mimodel_file,'r',encoding='utf-8') as f:
+                data_mimodel=json.loads(f.read())
+
+            traverse_parts_shapes_set_temp_texture_key(data_mimodel) #为每个part设置好临时材质键值
+
+            for key in all_texture_dict.keys():
+
+                temp_file=Input_Box_Auto(title='链接 '+key+' 的文件',text='文件:',parent=Window_MimodelUVMmergeTool,default=os.path.dirname(original_mimodel_file)+'/'+key,canspace=True,canempty=False).replace('\\','/')
+                if temp_file==None or temp_file.replace(' ','')=='':
+                    Message_Box_Auto(parent=Window_MimodelUVMmergeTool,title='错误',text='必须链接材质文件.',icon='error')
+                    for child in Window_MimodelUVMmergeTool.winfo_children():
+                            if child.winfo_class() in ('TSpinbox', 'TEntry', 'TButton'):
+                                child.config(state='normal')
+                    Window_MimodelUVMmergeTool.update()
+                    return
+                if not os.path.exists(temp_file):
+                    Message_Box_Auto(parent=Window_MimodelUVMmergeTool,title='错误',text='链接的材质文件不存在.',icon='error')
+                    for child in Window_MimodelUVMmergeTool.winfo_children():
+                            if child.winfo_class() in ('TSpinbox', 'TEntry', 'TButton'):
+                                child.config(state='normal')
+                    Window_MimodelUVMmergeTool.update()
+                    return
+
+                all_texture_dict[key]=temp_file
+
+
+            new_texture_size=[0,0]
+            for key in all_texture_dict:
+                temp_img=Image.open(all_texture_dict[key]).convert('RGBA')
+                new_texture_size[0]+=temp_img.width
+                new_texture_size[1]=max(new_texture_size[1],temp_img.height)
+            
+            new_texture_img=Image.new('RGBA', (new_texture_size[0] ,new_texture_size[1]), (0, 0, 0, 0))
+            general_offset_x=0
+            for key in all_texture_dict:#字典有序
+                temp_img=Image.open(all_texture_dict[key]).convert('RGBA')
+                new_texture_img.paste(temp_img,(general_offset_x,0))
+                all_texture_offset_dict[key]=[general_offset_x,general_offset_x+temp_img.width-1]
+                general_offset_x+=temp_img.width
+
+
+            for part in data_mimodel.get('parts', []):
+                traverse_shapes_set_uv_offset(part)
+            for part in data_mimodel.get('parts', []):
+                traverse_parts_delete_texture_key(part)
+        
+            with open(new_mimodel_file,'w',encoding='utf-8') as f:
+                f.write(json.dumps(data_mimodel, indent=4,ensure_ascii=False))
+
+            new_texture_img.save(new_texture_file)
+
+
+            Message_Box_Auto(parent=Window_MimodelUVMmergeTool,title='信息',text='处理完成.',icon='info')
+        except Exception as e:
+            Message_Box_Auto(parent=Window_MimodelUVMmergeTool,title='错误',text='处理文件时发生错误.\n详细信息: '+str(e),icon='error')
+            return
+        finally:
+            for child in Window_MimodelUVMmergeTool.winfo_children():
+                if child.winfo_class() in ('TSpinbox', 'TEntry', 'TButton'):
+                    child.config(state='normal')
+            Window_MimodelUVMmergeTool.update()
+        
+    def close_Window_MimodelUVMmergeTool(event=None):
+        Window_MimodelUVMmergeTool.destroy()
+    Window_MimodelUVMmergeTool=tk.Toplevel(root)
+    Window_MimodelUVMmergeTool.title('mimodel贴图合并工具')
+    width=510
+    height=220
+    screenwidth = Window_MimodelUVMmergeTool.winfo_screenwidth()
+    screenheight = Window_MimodelUVMmergeTool.winfo_screenheight()
+    geometry = '%dx%d+%d+%d' % (width, height, (screenwidth - width) / 2, (screenheight - height) / 2)
+    Window_MimodelUVMmergeTool.geometry(geometry)
+    Window_MimodelUVMmergeTool.resizable(0,0)
+    Window_MimodelUVMmergeTool.bind('<Escape>',close_Window_MimodelUVMmergeTool)
+    Window_MimodelUVMmergeTool.focus()
+
+    tk.Label(Window_MimodelUVMmergeTool,text='原mimodel文件路径: ',anchor='w').place(x=20,y=20,width=170,height=30)
+    Entry_original_mimodel_file=ttk.Entry(Window_MimodelUVMmergeTool,)
+    Entry_original_mimodel_file.place(x=200,y=20,width=230,height=30)
+    def browse_original_mimodel_file():
+        file_path = filedialog.askopenfilename(filetypes=[("mimodel文件", "*.mimodel"), ("JSON文件", "*.json"), ("所有文件", "*.*")])
+        if file_path!='' and file_path!=None:
+            Entry_original_mimodel_file.delete(0, 'end')
+            Entry_original_mimodel_file.insert(0, file_path)
+    Button_browse_original_mimodel_file=ttk.Button(Window_MimodelUVMmergeTool,text='...',command=browse_original_mimodel_file)
+    Button_browse_original_mimodel_file.place(x=450,y=20,width=40,height=30)
+
+    tk.Label(Window_MimodelUVMmergeTool,text='新mimodel文件路径: ',anchor='w').place(x=20,y=70,width=170,height=30)
+    Entry_new_mimodel_file=ttk.Entry(Window_MimodelUVMmergeTool,)
+    Entry_new_mimodel_file.place(x=200,y=70,width=230,height=30)
+    def browse_new_mimodel_file():
+        file_path = filedialog.asksaveasfilename(parent=Window_MimodelUVMmergeTool,defaultextension='.mimodel',filetypes=[("mimodel文件", "*.mimodel"), ("JSON文件", "*.json"), ("所有文件", "*.*")])
+        if file_path!='' and file_path!=None:
+            Entry_new_mimodel_file.delete(0, 'end')
+            Entry_new_mimodel_file.insert(0, file_path)
+    Button_browse_new_mimodel_file=ttk.Button(Window_MimodelUVMmergeTool,text='...',command=browse_new_mimodel_file)
+    Button_browse_new_mimodel_file.place(x=450,y=70,width=40,height=30)
+
+
+    tk.Label(Window_MimodelUVMmergeTool,text='新贴图文件路径: ',anchor='w').place(x=20,y=120,width=170,height=30)
+    Entry_new_texture_file=ttk.Entry(Window_MimodelUVMmergeTool,)
+    Entry_new_texture_file.place(x=200,y=120,width=230,height=30)
+    def browse_new_texture_file():
+        file_path = filedialog.asksaveasfilename(parent=Window_MimodelUVMmergeTool,defaultextension='.png',filetypes=[("png文件", "*.png"), ("所有文件", "*.*")])
+        if file_path!='' and file_path!=None:
+            Entry_new_texture_file.delete(0, 'end')
+            Entry_new_texture_file.insert(0, file_path)
+    Button_browse_new_texture_file=ttk.Button(Window_MimodelUVMmergeTool,text='...',command=browse_new_texture_file)
+    Button_browse_new_texture_file.place(x=450,y=120,width=40,height=30)
+
+    Window_MimodelUVMmergeTool.bind('<Return>',run_MimodelUVMmergeTool)
+    Button_start=ttk.Button(Window_MimodelUVMmergeTool,text='开始',default='active',command=run_MimodelUVMmergeTool)
+    Button_start.place(x=410,y=170,width=80,height=30)
+
+    Window_MimodelUVMmergeTool.iconbitmap(res_icon_folder+'icon.ico')
+    Window_MimodelUVMmergeTool.wait_window(Window_MimodelUVMmergeTool)
+
+def MimodelUVSeparationAndFinishing():
+    def hex_alpha_to_rgba(hex_color_str, alpha_float,):
+        """
+        将 (带#的十六进制颜色字符串, 0到1的透明度百分比) 元组
+        转换为 RGBA (R, G, B, A) 整数元组 (0-255)。
+
+        :param hex_color_str: 形式如 "#RRGGBB" 或 "#RGB" 的十六进制颜色字符串。
+        :param alpha_float: 0.0 (完全透明) 到 1.0 (完全不透明) 的浮点数。
+        :return: 包含 (R, G, B, A) 整数值 (0-255) 的元组。
+        """
+        # 1. 转换十六进制颜色到 RGB 整数元组
+        # ImageColor.getrgb() 可以处理 #RGB 和 #RRGGBB 格式
+        try:
+            rgb_tuple = ImageColor.getrgb(hex_color_str)
+            
+            # 对于标准的十六进制颜色，getrgb() 返回 (R, G, B) 三个值
+            r, g, b = rgb_tuple
+        except ValueError as e:
+            # 如果颜色字符串不正确，会抛出 ValueError
+            raise ValueError(f"无效的十六进制颜色字符串 '{hex_color_str}': {e}")
+
+        # 2. 转换 0.0-1.0 的浮点数 Alpha 值到 0-255 的整数 A 值
+        
+
+
+        # 确保浮点数在有效范围内 [0.0, 1.0]
+        # 使用 max/min 来“钳制” (clamp) 数值，防止输入如 -0.1 或 1.5 导致错误。
+        clamped_alpha = max(0.0, min(1.0, alpha_float))
+        
+        # 将浮点数 (0.0 - 1.0) 乘以 255 并四舍五入到最近的整数
+        # A=0.0 -> 0; A=1.0 -> 255; A=0.5 -> 128
+        a_int = round(clamped_alpha * 255)
+        
+        # 3. 组合并返回 RGBA 元组
+        return (r, g, b, a_int)
+
+    def mix_colors(original_color, mix_color, mix_percent,allow_alpha_reset=True ):
+        """
+        将两个颜色混合在一起，并返回混合后的颜色。
+
+        :param original_color: 原始颜色，格式为 (R, G, B, A)。
+        :param mix_color: 要混合的颜色，格式为 (R, G, B, A)。
+        :param mix_percent: 混合百分比，范围从 0.0 到 1.0。
+        :return: 混合后的颜色，格式为 (R, G, B, A)。
+        """
+        r = round(original_color[0] * (1 - mix_percent) + mix_color[0] * mix_percent)
+        g = round(original_color[1] * (1 - mix_percent) + mix_color[1] * mix_percent)
+        b = round(original_color[2] * (1 - mix_percent) + mix_color[2] * mix_percent)
+        if allow_alpha_reset==True:
+            a = round(original_color[3] * (1 - mix_percent) + mix_color[3] * mix_percent)
+        else:
+            a=original_color[3]
+        return ( r, g, b,a)
+
+    def process_shapes(shapes):
+        global img_old,img_new,offset_x,offset_y,row_max_height,new_mimodel_file,new_texture_file
+        
+        for i, shape in enumerate(shapes):
+            # 在这里对 shape 进行操作
+            if shape['type']=='plane':
+                plane_size=(math.ceil(abs(shape['to'][0]-shape['from'][0])), 
+                            math.ceil(abs(shape['to'][1]-shape['from'][1])),
+                            0)
+                plane_x1=shape['uv'][0]
+                plane_y1=shape['uv'][1]
+                plane_x2=plane_x1+plane_size[0]
+                plane_y2=plane_y1+plane_size[1]
+
+
+
+                crop_temp=img_old.crop((plane_x1,plane_y1,plane_x2,plane_y2))
+                if offset_x+crop_temp.size[0]>img_new.size[0]  and offset_x != 0:
+                    offset_x = 0 
+                    offset_y += row_max_height 
+                    row_max_height = 0 
+                
+                draw_crop_temp = ImageDraw.Draw(crop_temp)
+                if Var_not_reset_color_settings.get()==False:
+                    for width_x in range(crop_temp.size[0]):
+                        for height_y in range(crop_temp.size[1]):
+                            colorpoint_original=crop_temp.getpixel((width_x,height_y))
+                            if 'color_mix' not in shape:
+                                shape['color_mix']='#000000'
+                            if 'color_mix_percent' not in shape:
+                                shape['color_mix_percent']=0
+                            if 'color_alpha' not in shape :
+                                shape['color_alpha']=1
+                            colorpoint_mixed_color=mix_colors(colorpoint_original,hex_alpha_to_rgba(shape['color_mix'],shape['color_alpha']),shape['color_mix_percent'],allow_alpha_reset=False if Var_not_reset_alpha_settings.get() else True)
+                            draw_crop_temp.rectangle([width_x, height_y, width_x, height_y], fill=colorpoint_mixed_color)
+                    del shape['color_mix']
+                    del shape['color_mix_percent']
+                    if Var_not_reset_alpha_settings.get()==False:
+                        del shape['color_alpha']
+
+                shape['uv']=[offset_x,offset_y]
+
+
+            
+            if shape['type']=='block':
+                block_size=(math.ceil(abs(shape['to'][0]-shape['from'][0])),math.ceil(abs(shape['to'][1]-shape['from'][1])),math.ceil(abs(shape['to'][2]-shape['from'][2])))
+                block_front_leftup_x = shape['uv'][0]
+                block_front_leftup_y = shape['uv'][1]
+                block_x1 = block_front_leftup_x - block_size[2]
+                block_y1 = block_front_leftup_y - block_size[2]
+                block_x2 = block_x1 + block_size[0] *2 + block_size[2]*2
+                block_y2 = block_y1 + block_size[2] + block_size[1]
+
+                crop_temp=img_old.crop((block_x1,block_y1,block_x2,block_y2))
+
+                draw_crop_temp = ImageDraw.Draw(crop_temp)
+                if Var_not_reset_color_settings.get()==False:
+                    for width_x in range(crop_temp.size[0]):
+                        for height_y in range(crop_temp.size[1]):
+                            colorpoint_original=crop_temp.getpixel((width_x,height_y))
+                            if 'color_mix' not in shape:
+                                shape['color_mix']='#000000'
+                            if 'color_mix_percent' not in shape:
+                                shape['color_mix_percent']=0
+                            if 'color_alpha' not in shape:
+                                shape['color_alpha']=1
+                            colorpoint_mixed_color=mix_colors(colorpoint_original,hex_alpha_to_rgba(shape['color_mix'],shape['color_alpha']),shape['color_mix_percent'],allow_alpha_reset=False if Var_not_reset_alpha_settings.get() else True)
+                            draw_crop_temp.rectangle([width_x, height_y, width_x, height_y], fill=colorpoint_mixed_color)
+                    del shape['color_mix']
+                    del shape['color_mix_percent']
+                    if Var_not_reset_alpha_settings.get()==False:
+                        del shape['color_alpha']
+
+
+                # 填充矩形区域
+                # xy 是一个包含两个点的元组：[ (x0, y0), (x1, y1) ]
+                # 或一个包含四个数值的元组：[ x0, y0, x1, y1 ]
+                draw_crop_temp.rectangle([
+                                            0,
+                                            0,
+                                            block_size[2]-1,
+                                            block_size[2]-1,
+                                        ],
+                                        fill=(0,0,0,0))
+                draw_crop_temp.rectangle([
+                                            block_size[0]*2+block_size[2],
+                                            0,
+                                            block_size[0]*2+block_size[2]*2-1 ,
+                                            block_size[2]-1
+                                        ], 
+                                        fill=(0,0,0,0))
+                
+                
+                if offset_x+crop_temp.size[0]>img_new.size[0] :
+                    offset_x = 0 
+                    offset_y += row_max_height 
+                    row_max_height = 0 
+                if offset_y+crop_temp.size[1]>img_new.size[1] :
+                    #报错不在这里
+                    return False
+            
+                
+                shape['uv']=[offset_x+block_size[2],offset_y+block_size[2]]
+
+            img_new.paste(crop_temp,(offset_x,offset_y))
+            img_new.save(new_texture_file)
+
+            offset_x+=crop_temp.size[0]
+
+            row_max_height = max(row_max_height, crop_temp.size[1]) 
+
+        new_shape = shape  
+        shapes[i] = new_shape  # 写回原数据
+
+        return True
+
+    def traverse_parts(part):
+        # 如果有 shapes 列表，处理它
+        if 'shapes' in part and isinstance(part['shapes'], list):
+            r = process_shapes(part['shapes'])
+            if r==False:
+                return False
+        # 如果有子 parts，递归处理
+        if 'parts' in part and isinstance(part['parts'], list):
+            for subpart in part['parts']:
+                traverse_parts(subpart)
+
+    def run_MimodelUVSeparationAndFinishing(event=None):
+        global img_old,img_new,offset_x,offset_y,row_max_height,new_mimodel_file,new_texture_file,new_texture_width,new_texture_height
+        original_mimodel_file=Entry_original_mimodel_file.get().strip().replace('\\','/')
+        original_texture_file=Entry_original_texture_file.get().strip().replace('\\','/')
+        new_mimodel_file=Entry_new_mimodel_file.get().strip().replace('\\','/')
+        new_texture_file=Entry_new_texture_file.get().strip().replace('\\','/')
+        
+        if original_mimodel_file.replace(' ','')=='': Message_Box_Auto(parent=Window_MimodelUVSeparationAndFinishing,title='错误',text='未选择原mimodel文件.',icon='error');Entry_original_mimodel_file.focus_set();return
+        if original_texture_file.replace(' ','')=='': Message_Box_Auto(parent=Window_MimodelUVSeparationAndFinishing,title='错误',text='未选择原贴图文件.',icon='error');Entry_original_texture_file.focus_set();return
+        if new_mimodel_file.replace(' ','')=='': Message_Box_Auto(parent=Window_MimodelUVSeparationAndFinishing,title='错误',text='未选择新mimodel文件.',icon='error');Entry_new_mimodel_file.focus_set();return
+        if new_texture_file.replace(' ','')=='': Message_Box_Auto(parent=Window_MimodelUVSeparationAndFinishing,title='错误',text='未选择新贴图文件.',icon='error');Entry_new_texture_file.focus_set();return
+        if not os.path.exists(original_mimodel_file): Message_Box_Auto(parent=Window_MimodelUVSeparationAndFinishing,title='错误',text='原mimodel文件不存在.',icon='error');Entry_original_mimodel_file.focus_set();return
+        if not os.path.exists(original_texture_file): Message_Box_Auto(parent=Window_MimodelUVSeparationAndFinishing,title='错误',text='原贴图文件不存在.',icon='error');Entry_original_texture_file.focus_set();return
+        if os.path.exists(new_mimodel_file): Message_Box_Auto(parent=Window_MimodelUVSeparationAndFinishing,title='错误',text='新mimodel型文件已存在.',icon='error');Entry_new_mimodel_file.focus_set();return
+        if os.path.exists(new_texture_file): Message_Box_Auto(parent=Window_MimodelUVSeparationAndFinishing,title='错误',text='新贴图文件已存在.',icon='error');Entry_new_texture_file.focus_set();return
+
+        try: new_texture_width=int(Spinbox_new_texture_width.get())
+        except: Message_Box_Auto(parent=Window_MimodelUVSeparationAndFinishing,title='错误',text='新贴图宽输入错误.',icon='error');Spinbox_new_texture_width.focus_set();return
+        try: new_texture_height=int(Spinbox_new_texture_height.get())
+        except: Message_Box_Auto(parent=Window_MimodelUVSeparationAndFinishing,title='错误',text='新贴图高输入错误.',icon='error');Spinbox_new_texture_width.focus_set();return
+
+        for child in Window_MimodelUVSeparationAndFinishing.winfo_children():
+            if child.winfo_class()=='TButton':
+                child.config(state='disabled')
+            elif child.winfo_class()=='TSpinbox' or child.winfo_class()=='TEntry':
+                child.config(state='readonly')
+        Window_MimodelUVSeparationAndFinishing.update()
+
+        try:
+            with open(original_mimodel_file,'r',encoding='utf-8') as f:
+                data_mimodel=json.loads(f.read())
+            img_old=Image.open(original_texture_file).convert('RGBA')
+            img_new=Image.new('RGBA', (new_texture_width ,new_texture_height), (0, 0, 0, 0))
+            offset_x=0
+            offset_y=0
+            row_max_height = 0
+            # 假设 data_mimodel 是你的模型数据
+            # traverse_parts(data_mimodel)  # 如果顶层就是 parts
+            for part in data_mimodel.get('parts', []):
+                if traverse_parts(part) ==False:
+                    Message_Box_Auto(parent=Window_MimodelUVSeparationAndFinishing,title='错误',text='新贴图尺寸不足,无法继续排布.',icon='error')
+                    return
+            
+            with open(new_mimodel_file,'w',encoding='utf-8') as f:
+                f.write(json.dumps(data_mimodel, indent=4,ensure_ascii=False))
+            Message_Box_Auto(parent=Window_MimodelUVSeparationAndFinishing,title='信息',text='处理完成.',icon='info')
+        except Exception as e:
+            Message_Box_Auto(parent=Window_MimodelUVSeparationAndFinishing,title='错误',text='处理文件时发生错误.\n详细信息: '+str(e),icon='error')
+            return
+        finally:
+            for child in Window_MimodelUVSeparationAndFinishing.winfo_children():
+                if child.winfo_class() in ('TSpinbox', 'TEntry', 'TButton'):
+                    child.config(state='normal')
+            Window_MimodelUVSeparationAndFinishing.update()
+
+    def exit_app(event=None):
+        Window_MimodelUVSeparationAndFinishing.destroy()
+    Window_MimodelUVSeparationAndFinishing=tk.Toplevel(root)
+    Window_MimodelUVSeparationAndFinishing.title('mimodelUV分离与整理')
+    width=510
+    height=420
+    screenwidth = Window_MimodelUVSeparationAndFinishing.winfo_screenwidth()
+    screenheight = Window_MimodelUVSeparationAndFinishing.winfo_screenheight()
+    geometry = '%dx%d+%d+%d' % (width, height, (screenwidth - width) / 2, (screenheight - height) / 2)
+    Window_MimodelUVSeparationAndFinishing.geometry(geometry)
+    Window_MimodelUVSeparationAndFinishing.resizable(0,0)
+    Window_MimodelUVSeparationAndFinishing.bind('<Escape>',exit_app)
+    Window_MimodelUVSeparationAndFinishing.focus()
+
+    tk.Label(Window_MimodelUVSeparationAndFinishing,text='仅支持单贴图,多贴图需先使用UV合并工具转换.不支持"混合材质"项.',anchor='w',fg="#C90000").place(x=20,y=370,width=380,height=30)
+
+    tk.Label(Window_MimodelUVSeparationAndFinishing,text='原mimodel文件路径: ',anchor='w').place(x=20,y=20,width=170,height=30)
+    Entry_original_mimodel_file=ttk.Entry(Window_MimodelUVSeparationAndFinishing,)
+    Entry_original_mimodel_file.place(x=200,y=20,width=230,height=30)
+    def browse_original_mimodel_file():
+        file_path = filedialog.askopenfilename(filetypes=[("mimodel文件", "*.mimodel"), ("JSON文件", "*.json"), ("所有文件", "*.*")])
+        if file_path!='' and file_path!=None:
+            Entry_original_mimodel_file.delete(0, 'end')
+            Entry_original_mimodel_file.insert(0, file_path)
+    Button_browse_original_mimodel_file=ttk.Button(Window_MimodelUVSeparationAndFinishing,text='...',command=browse_original_mimodel_file)
+    Button_browse_original_mimodel_file.place(x=450,y=20,width=40,height=30)
+
+    tk.Label(Window_MimodelUVSeparationAndFinishing,text='原贴图文件路径: ',anchor='w').place(x=20,y=70,width=170,height=30)
+    Entry_original_texture_file=ttk.Entry(Window_MimodelUVSeparationAndFinishing,)
+    Entry_original_texture_file.place(x=200,y=70,width=230,height=30)
+    def browse_original_texture_file():
+        file_path = filedialog.askopenfilename(filetypes=[("png文件", "*.png"), ("所有文件", "*.*")])
+        if file_path!='' and file_path!=None:
+            Entry_original_texture_file.delete(0, 'end')
+            Entry_original_texture_file.insert(0, file_path)
+    Button_browse_original_texture_file=ttk.Button(Window_MimodelUVSeparationAndFinishing,text='...',command=browse_original_texture_file)
+    Button_browse_original_texture_file.place(x=450,y=70,width=40,height=30)
+
+    tk.Label(Window_MimodelUVSeparationAndFinishing,text='新mimodel文件路径: ',anchor='w').place(x=20,y=120,width=170,height=30)
+    Entry_new_mimodel_file=ttk.Entry(Window_MimodelUVSeparationAndFinishing,)
+    Entry_new_mimodel_file.place(x=200,y=120,width=230,height=30)
+    def browse_new_mimodel_file():
+        file_path = filedialog.asksaveasfilename(parent=Window_MimodelUVSeparationAndFinishing,defaultextension='.mimodel',filetypes=[("mimodel文件", "*.mimodel"), ("JSON文件", "*.json"), ("所有文件", "*.*")])
+        if file_path!='' and file_path!=None:
+            Entry_new_mimodel_file.delete(0, 'end')
+            Entry_new_mimodel_file.insert(0, file_path)
+    Button_browse_new_mimodel_file=ttk.Button(Window_MimodelUVSeparationAndFinishing,text='...',command=browse_new_mimodel_file)
+    Button_browse_new_mimodel_file.place(x=450,y=120,width=40,height=30)
+
+    tk.Label(Window_MimodelUVSeparationAndFinishing,text='新贴图文件路径: ',anchor='w').place(x=20,y=170,width=170,height=30)
+    Entry_new_texture_file=ttk.Entry(Window_MimodelUVSeparationAndFinishing,)
+    Entry_new_texture_file.place(x=200,y=170,width=230,height=30)
+    def browse_new_texture_file():
+        file_path = filedialog.asksaveasfilename(parent=Window_MimodelUVSeparationAndFinishing,defaultextension='.png',filetypes=[("png文件", "*.png"), ("所有文件", "*.*")])
+        if file_path!='' and file_path!=None:
+            Entry_new_texture_file.delete(0, 'end')
+            Entry_new_texture_file.insert(0, file_path)
+    Button_browse_new_texture_file=ttk.Button(Window_MimodelUVSeparationAndFinishing,text='...',command=browse_new_texture_file)
+    Button_browse_new_texture_file.place(x=450,y=170,width=40,height=30)
+
+    tk.Label(Window_MimodelUVSeparationAndFinishing,text='新贴图宽:',anchor='w').place(x=20,y=220,width=120,height=30)
+    Spinbox_new_texture_width=ttk.Spinbox(Window_MimodelUVSeparationAndFinishing,from_=16,to=float('inf'),increment=16)
+    Spinbox_new_texture_width.place(x=200,y=220,width=230,height=30)
+    Spinbox_new_texture_width.insert(0,256)
+
+    tk.Label(Window_MimodelUVSeparationAndFinishing,text='新贴图高:',anchor='w').place(x=20,y=270,width=120,height=30)
+    Spinbox_new_texture_height=ttk.Spinbox(Window_MimodelUVSeparationAndFinishing,from_=16,to=float('inf'),increment=16)
+    Spinbox_new_texture_height.place(x=200,y=270,width=230,height=30)
+    Spinbox_new_texture_height.insert(0,256)
+
+
+    def update_checkbutton(event=None):
+        if Var_not_reset_color_settings.get()==True:
+            Var_not_reset_alpha_settings.set(True)
+            Checkbutton_not_reset_alpha_settings.config(state='disabled')
+        else:
+            Checkbutton_not_reset_alpha_settings.config(state='normal')
+
+    ttk.Style().configure('NOT.TCheckbutton',anchor='w')
+    Var_not_reset_color_settings=tk.BooleanVar()
+    Var_not_reset_color_settings.set(False)
+    Checkbutton_not_reset_color_settings=ttk.Checkbutton(Window_MimodelUVSeparationAndFinishing,text='保留MB颜色属性.',command=update_checkbutton,variable=Var_not_reset_color_settings,style='NOT.TCheckbutton',onvalue=True,offvalue=False)
+    Checkbutton_not_reset_color_settings.place(x=20,y=320,width=150,height=30)
+
+
+    Var_not_reset_alpha_settings=tk.BooleanVar()
+    Var_not_reset_alpha_settings.set(True)
+    Checkbutton_not_reset_alpha_settings=ttk.Checkbutton(Window_MimodelUVSeparationAndFinishing,text='保留MB透明度属性(推荐).',command=update_checkbutton,variable=Var_not_reset_alpha_settings,style='NOT.TCheckbutton',onvalue=True,offvalue=False)
+    Checkbutton_not_reset_alpha_settings.place(x=190,y=320,width=200,height=30)
+
+    Window_MimodelUVSeparationAndFinishing.bind('<Return>',run_MimodelUVSeparationAndFinishing)
+    Button_start=ttk.Button(Window_MimodelUVSeparationAndFinishing,text='开始',default='active',command=run_MimodelUVSeparationAndFinishing)
+    Button_start.place(x=410,y=370,width=80,height=30)
+
+
+    Window_MimodelUVSeparationAndFinishing.iconbitmap(res_icon_folder+'icon.ico')
+    Window_MimodelUVSeparationAndFinishing.mainloop()
+
+def MimodelRenameRedDuplicateComponents():
+    parts_names_dict={}
+    count_id=0
+    list_keys=[]
+
+    def run_MimodelRenameRedDuplicateComponents(event=None):
+        original_mimodel_file=Entry_original_mired_mimodel_file.get().strip()
+        new_mimodel_file=Entry_new_mired_mimodel_file.get().strip()
+
+        if original_mimodel_file.replace(' ','')=='': Message_Box_Auto(parent=Window_MimodelRenameRedDuplicateComponents,title='错误',text='未选择原mimodel文件.',icon='error');Entry_original_mired_mimodel_file.focus_set();return
+        if new_mimodel_file.replace(' ','')=='': Message_Box_Auto(parent=Window_MimodelRenameRedDuplicateComponents,title='错误',text='未选择新mimodel文件.',icon='error');Entry_new_mired_mimodel_file.focus_set();return
+        if not os.path.exists(original_mimodel_file): Message_Box_Auto(parent=Window_MimodelRenameRedDuplicateComponents,title='错误',text='原mimodel文件不存在.',icon='error');Entry_original_mired_mimodel_file.focus_set();return
+
+        if os.path.exists(new_mimodel_file): Message_Box_Auto(parent=Window_MimodelRenameRedDuplicateComponents,title='错误',text='新mimodel型文件已存在.',icon='error');Entry_new_mired_mimodel_file.focus_set();return
+       
+        for child in Window_MimodelRenameRedDuplicateComponents.winfo_children():
+            if child.winfo_class()=='TButton':
+                child.config(state='disabled')
+            elif child.winfo_class()=='TSpinbox' or child.winfo_class()=='TEntry':
+                child.config(state='readonly')
+        Window_MimodelRenameRedDuplicateComponents.update()
+
+        try:
+            with open(original_mimodel_file,'r',encoding='utf-8') as f:
+                data_mimodel=json.loads(f.read())
+
+            for part in data_mimodel.get('parts', []):
+                traverse_parts_count_and_tag(part)
+
+            with open(new_mimodel_file,'w',encoding='utf-8') as f_new:
+                f_new.write(json.dumps(data_mimodel, indent=4,ensure_ascii=False))
+            Message_Box_Auto(parent=Window_MimodelRenameRedDuplicateComponents,title='信息',text='处理完成.',icon='info')
+        except Exception as e:
+            Message_Box_Auto(parent=Window_MimodelRenameRedDuplicateComponents,title='错误',text='处理文件时发生错误.\n详细信息: '+str(e),icon='error')
+            return
+        finally:
+            for child in Window_MimodelRenameRedDuplicateComponents.winfo_children():
+                if child.winfo_class() in ('TSpinbox', 'TEntry', 'TButton'):
+                    child.config(state='normal')
+            Window_MimodelRenameRedDuplicateComponents.update()
+
+    def traverse_parts_count_and_tag(part):
+        nonlocal count_id, parts_names_dict, list_keys
+        # 如果有子 parts，递归处理
+        if 'parts' in part and isinstance(part['parts'], list):
+            
+            parts=part['parts']
+            for i, subpart in enumerate(parts):
+                subpart['mb_name']=subpart['name']
+                parts[i] = subpart
+                traverse_parts_count_and_tag(subpart)
+
+    def close_Window_MimodelRenameRedDuplicateComponents(event=None):
+        Window_MimodelRenameRedDuplicateComponents.destroy()
+    Window_MimodelRenameRedDuplicateComponents=tk.Toplevel()
+    Window_MimodelRenameRedDuplicateComponents.title('mimodel重命名红色重复组件')
+    width=510
+    height=170
+    screenwidth = Window_MimodelRenameRedDuplicateComponents.winfo_screenwidth()
+    screenheight = Window_MimodelRenameRedDuplicateComponents.winfo_screenheight()
+    geometry = '%dx%d+%d+%d' % (width, height, (screenwidth - width) / 2, (screenheight - height) / 2)
+    Window_MimodelRenameRedDuplicateComponents.geometry(geometry)
+    Window_MimodelRenameRedDuplicateComponents.resizable(0,0)
+    Window_MimodelRenameRedDuplicateComponents.bind('<Escape>',close_Window_MimodelRenameRedDuplicateComponents)
+    Window_MimodelRenameRedDuplicateComponents.focus()
+
+    tk.Label(Window_MimodelRenameRedDuplicateComponents,text='原mimodel文件路径: ',anchor='w').place(x=20,y=20,width=170,height=30)
+    Entry_original_mired_mimodel_file=ttk.Entry(Window_MimodelRenameRedDuplicateComponents,)
+    Entry_original_mired_mimodel_file.place(x=200,y=20,width=230,height=30)
+    def browse_original_mired_mimodel_file():
+        file_path = filedialog.askopenfilename(filetypes=[("mimodel文件", "*.mimodel"), ("JSON文件", "*.json"), ("所有文件", "*.*")])
+        if file_path!='' and file_path!=None:
+            Entry_original_mired_mimodel_file.delete(0, 'end')
+            Entry_original_mired_mimodel_file.insert(0, file_path)
+    Button_browse_mired_original_mimodel_file=ttk.Button(Window_MimodelRenameRedDuplicateComponents,text='...',command=browse_original_mired_mimodel_file)
+    Button_browse_mired_original_mimodel_file.place(x=450,y=20,width=40,height=30)
+
+    tk.Label(Window_MimodelRenameRedDuplicateComponents,text='新mimodel文件路径: ',anchor='w').place(x=20,y=70,width=170,height=30)
+    Entry_new_mired_mimodel_file=ttk.Entry(Window_MimodelRenameRedDuplicateComponents,)
+    Entry_new_mired_mimodel_file.place(x=200,y=70,width=230,height=30)
+    def browse_new_mired_mimodel_file():
+        file_path = filedialog.asksaveasfilename(parent=Window_MimodelRenameRedDuplicateComponents,defaultextension='.mimodel',filetypes=[("mimodel文件", "*.mimodel"), ("JSON文件", "*.json"), ("所有文件", "*.*")])
+        if file_path!='' and file_path!=None:
+            Entry_new_mired_mimodel_file.delete(0, 'end')
+            Entry_new_mired_mimodel_file.insert(0, file_path)
+    Button_browse_new_mired_mimodel_file=ttk.Button(Window_MimodelRenameRedDuplicateComponents,text='...',command=browse_new_mired_mimodel_file)
+    Button_browse_new_mired_mimodel_file.place(x=450,y=70,width=40,height=30)
+
+    Window_MimodelRenameRedDuplicateComponents.bind('<Return>',run_MimodelRenameRedDuplicateComponents)
+    Button_start=ttk.Button(Window_MimodelRenameRedDuplicateComponents,text='开始',default='active',command=run_MimodelRenameRedDuplicateComponents)
+    Button_start.place(x=410,y=120,width=80,height=30)
+
+    Window_MimodelRenameRedDuplicateComponents.iconbitmap(res_icon_folder+'icon.ico')
+    Window_MimodelRenameRedDuplicateComponents.wait_window()
+
+def BBmodelFaceToBoxUV():
+    def close_Window_BBmodelFaceToBoxUV(event=None):
+        Window_BBmodelFaceToBoxUV.destroy()
+
+    Window_BBmodelFaceToBoxUV=tk.Toplevel(root)
+    Window_BBmodelFaceToBoxUV.title('bbmodelUV逐面转箱式')
+    width=510
+    height=370
+    screenwidth = Window_BBmodelFaceToBoxUV.winfo_screenwidth()
+    screenheight = Window_BBmodelFaceToBoxUV.winfo_screenheight()
+    geometry = '%dx%d+%d+%d' % (width, height, (screenwidth - width) / 2, (screenheight - height) / 2)
+    Window_BBmodelFaceToBoxUV.geometry(geometry)
+    Window_BBmodelFaceToBoxUV.resizable(0,0)
+    Window_BBmodelFaceToBoxUV.bind('<Escape>',close_Window_BBmodelFaceToBoxUV)
+    Window_BBmodelFaceToBoxUV.focus()
+
+    tk.Label(Window_BBmodelFaceToBoxUV,text='原bb模型文件路径: ',anchor='w').place(x=20,y=20,width=170,height=30)
+    Entry_original_bbmodel_file=ttk.Entry(Window_BBmodelFaceToBoxUV,)
+    Entry_original_bbmodel_file.place(x=200,y=20,width=230,height=30)
+    def browse_original_bbmodel_file():
+        file_path = filedialog.askopenfilename(filetypes=[("bbmodel文件", "*.bbmodel"), ("所有文件", "*.*")])
+        if file_path!='' and file_path!=None:
+            Entry_original_bbmodel_file.delete(0, 'end')
+            Entry_original_bbmodel_file.insert(0, file_path)
+    Button_browse_original_bbmodel_file=ttk.Button(Window_BBmodelFaceToBoxUV,text='...',command=browse_original_bbmodel_file)
+    Button_browse_original_bbmodel_file.place(x=450,y=20,width=40,height=30)
+
+
+    tk.Label(Window_BBmodelFaceToBoxUV,text='原贴图文件路径: ',anchor='w').place(x=20,y=70,width=170,height=30)
+    Entry_original_texture_file=ttk.Entry(Window_BBmodelFaceToBoxUV,)
+    Entry_original_texture_file.place(x=200,y=70,width=230,height=30)
+    def browse_original_texture_file():
+        file_path = filedialog.askopenfilename(filetypes=[("png文件", "*.png"), ("所有文件", "*.*")])
+        
+        if file_path!='' and file_path!=None:
+            Entry_original_texture_file.delete(0, 'end')
+            Entry_original_texture_file.insert(0, file_path)
+    Button_browse_original_texture_file=ttk.Button(Window_BBmodelFaceToBoxUV,text='...',command=browse_original_texture_file)
+    Button_browse_original_texture_file.place(x=450,y=70,width=40,height=30)
+
+
+    tk.Label(Window_BBmodelFaceToBoxUV,text='新bb模型文件路径: ',anchor='w').place(x=20,y=120,width=170,height=30)
+    Entry_new_bbmodel_file=ttk.Entry(Window_BBmodelFaceToBoxUV,)
+    Entry_new_bbmodel_file.place(x=200,y=120,width=230,height=30)
+    def browse_new_bbmodel_file():
+        file_path = filedialog.asksaveasfilename(parent=Window_BBmodelFaceToBoxUV,defaultextension='.bbmodel',filetypes=[("bbmodel文件", "*.bbmodel"), ("所有文件", "*.*")])
+        if file_path!='' and file_path!=None:
+            Entry_new_bbmodel_file.delete(0, 'end')
+            Entry_new_bbmodel_file.insert(0, file_path)
+    Button_browse_new_bbmodel_file=ttk.Button(Window_BBmodelFaceToBoxUV,text='...',command=browse_new_bbmodel_file)
+    Button_browse_new_bbmodel_file.place(x=450,y=120,width=40,height=30)
+
+
+    tk.Label(Window_BBmodelFaceToBoxUV,text='新贴图文件路径: ',anchor='w').place(x=20,y=170,width=170,height=30)
+    Entry_new_texture_file=ttk.Entry(Window_BBmodelFaceToBoxUV,)
+    Entry_new_texture_file.place(x=200,y=170,width=230,height=30)
+    def browse_new_texture_file():
+        file_path = filedialog.asksaveasfilename(parent=Window_BBmodelFaceToBoxUV,defaultextension='.png',filetypes=[("png文件", "*.png"), ("所有文件", "*.*")])
+        if file_path!='' and file_path!=None:
+            Entry_new_texture_file.delete(0, 'end')
+            Entry_new_texture_file.insert(0, file_path)
+    Button_browse_new_texture_file=ttk.Button(Window_BBmodelFaceToBoxUV,text='...',command=browse_new_texture_file)
+    Button_browse_new_texture_file.place(x=450,y=170,width=40,height=30)
+
+    tk.Label(Window_BBmodelFaceToBoxUV,text='新贴图宽:',anchor='w').place(x=20,y=220,width=120,height=30)
+    Spinbox_new_texture_width=ttk.Spinbox(Window_BBmodelFaceToBoxUV,from_=16,to=float('inf'),increment=16)
+    Spinbox_new_texture_width.place(x=200,y=220,width=230,height=30)
+    Spinbox_new_texture_width.insert(0,256)
+
+    tk.Label(Window_BBmodelFaceToBoxUV,text='新贴图高:',anchor='w').place(x=20,y=270,width=120,height=30)
+    Spinbox_new_texture_height=ttk.Spinbox(Window_BBmodelFaceToBoxUV,from_=16,to=float('inf'),increment=16)
+    Spinbox_new_texture_height.place(x=200,y=270,width=230,height=30)
+    Spinbox_new_texture_height.insert(0,256)
+
+    tk.Label(Window_BBmodelFaceToBoxUV,text='必须使用通用模型进行转换;不支持网格对象;逐面贴图不能拉伸.',anchor='w',fg="#C90000").place(x=20,y=320,width=370,height=30)
+
+    def run_BBmodelFaceToBoxUV(event=None):
+        if Entry_original_bbmodel_file.get().replace(' ','')=='': Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='错误',text='未选择原bb模型文件.',icon='error');Entry_original_bbmodel_file.focus_set();return
+        if Entry_original_texture_file.get().replace(' ','')=='': Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='错误',text='未选择原贴图文件.',icon='error');Entry_original_texture_file.focus_set();return
+        if Entry_new_bbmodel_file.get().replace(' ','')=='': Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='错误',text='未选择新bb模型文件.',icon='error');Entry_new_bbmodel_file.focus_set();return
+        if Entry_new_texture_file.get().replace(' ','')=='': Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='错误',text='未选择新贴图文件.',icon='error');Entry_new_texture_file.focus_set();return
+        if not os.path.exists(Entry_original_bbmodel_file.get()): Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='错误',text='原bb模型文件不存在.',icon='error');Entry_original_bbmodel_file.focus_set();return
+        if not os.path.exists(Entry_original_texture_file.get()): Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='错误',text='原贴图文件不存在.',icon='error');Entry_original_texture_file.focus_set();return
+        if os.path.exists(Entry_new_bbmodel_file.get()): Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='错误',text='新bb模型文件已存在.',icon='error');Entry_new_bbmodel_file.focus_set();return
+        if os.path.exists(Entry_new_texture_file.get()): Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='错误',text='新贴图文件已存在.',icon='error');Entry_new_texture_file.focus_set();return
+
+        try: int(Spinbox_new_texture_width.get())
+        except: Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='错误',text='新贴图宽输入错误.',icon='error');Spinbox_new_texture_width.focus_set();return
+        try: int(Spinbox_new_texture_height.get())
+        except: Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='错误',text='新贴图高输入错误.',icon='error');Spinbox_new_texture_width.focus_set();return
+
+        try :
+            with open(Entry_original_bbmodel_file.get(),'r',encoding='utf-8') as f:
+                data_original_bbmodel = json.load(f)
+        except Exception as e:
+            Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='错误',text='原bb模型文件读取或解析失败.\n详细信息: '+str(e),icon='error')
+            Entry_original_bbmodel_file.focus_set()
+            return
+        
+        if data_original_bbmodel['meta']['box_uv']==True:
+            Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='错误',text='原bb模型文件不是逐面UV.',icon='error')
+            Entry_original_bbmodel_file.focus_set()
+            return
+
+        def change_(list_old):
+            if list_old[0]>list_old[2] :
+                list_old=[list_old[2],list_old[1],list_old[0],list_old[3]]
+
+
+            if list_old[1]>list_old[3]:
+                list_old=[list_old[0],list_old[3],list_old[2],list_old[1]]
+            return list_old
+
+        #检查开始,只处理文本.
+        #处理项目: elements►<>►faces►<>►uv中的UV拉伸,让其与
+        for i in data_original_bbmodel['elements']:
+            block_size=(i['to'][0]-i['from'][0],i['to'][1]-i['from'][1],i['to'][2]-i['from'][2])
+            block_name=i['name']
+
+            for face_name, face_data in i['faces'].items():
+                #face_name指的是朝向而非名字
+                face_size=(face_data['uv'][2]-face_data['uv'][0],face_data['uv'][3]-face_data['uv'][1])
+                if face_name=='north':
+                    if face_size[0]!=block_size[0] or face_size[1]!=block_size[1]:
+                        if Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='警告',text='方块 '+block_name+' 的 north 面出现拉伸错误,会导致贴图错误.',buttonmode=2,defaultfocus=1,show_checkbutton=True,icon='warning',text_true='忽略',text_false='终止')==False:
+                            return
+                
+                elif face_name=='south':
+                    if face_size[0]!=block_size[0] or face_size[1]!=block_size[1]:
+                        if Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='警告',text='方块 '+block_name+' 的 south 面出现拉伸错误,会导致贴图错误.',buttonmode=2,defaultfocus=1,show_checkbutton=True,icon='warning',text_true='忽略',text_false='终止')==False:
+                            return
+                elif face_name=='east':
+                    if face_size[0]!=block_size[2] or face_size[1]!=block_size[1]:
+                        if Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='警告',text='方块 '+block_name+' 的 east 面出现拉伸错误,会导致贴图错误.',buttonmode=2,defaultfocus=1,show_checkbutton=True,icon='warning',text_true='忽略',text_false='终止')==False:
+                            return
+                elif face_name=='west':
+                    if face_size[0]!=block_size[2] or face_size[1]!=block_size[1]:
+                        if Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='警告',text='方块 '+block_name+' 的 west 面出现拉伸错误,会导致贴图错误.',buttonmode=2,defaultfocus=1,show_checkbutton=True,icon='warning',text_true='忽略',text_false='终止')==False:
+                            return
+                elif face_name=='up':
+                    if abs(face_size[0])!=block_size[0] or abs(face_size[1])!=block_size[2]:
+                        if Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='警告',text='方块 '+block_name+' 的 up 面出现拉伸错误,会导致贴图错误.',buttonmode=2,defaultfocus=1,show_checkbutton=True,icon='warning',text_true='忽略',text_false='终止')==False:
+                            return
+                elif face_name=='down':
+                    if abs(face_size[0])!=block_size[0] or abs(face_size[1])!=block_size[2]:
+                        if Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='警告',text='方块 '+block_name+' 的 down 面出现拉伸错误,会导致贴图错误.',buttonmode=2,defaultfocus=1,show_checkbutton=True,icon='warning',text_true='忽略',text_false='终止')==False:
+                            return
+
+        #检查结束
+        #数据转换开始
+        pil_original_texture=Image.open(Entry_original_texture_file.get()).convert('RGBA')
+        pil_new_texture = Image.new('RGBA', (int(Spinbox_new_texture_width.get()),int(Spinbox_new_texture_height.get())), (0, 0, 0, 0))
+
+
+
+        # 初始化偏移量和当前行的最大高度
+        offset_x, offset_y = 0, 0
+        row_max_height = 0  # <--- 在这里添加这一行
+
+
+        # 遍历所有元素
+        for idx, element in enumerate(data_original_bbmodel['elements']):
+            block_size = ( 
+                int(element['to'][0] - element['from'][0]), 
+                int(element['to'][1] - element['from'][1]), 
+                int(element['to'][2] - element['from'][2]), 
+            ) 
+
+            # 计算该方块在UV图上展开后的总宽度和高度
+            face_width = block_size[0] 
+            face_height = block_size[1] 
+            face_depth = block_size[2] 
+            box_uv_width = face_depth * 2 + face_width * 2 
+            box_uv_height = face_height + face_depth 
+
+            # **核心修正：在绘制前检查是否需要换行**
+            # 如果当前行放不下这个新方块，则先换行
+            if offset_x + box_uv_width > pil_new_texture.size[0] and offset_x != 0: 
+                offset_x = 0 
+                offset_y += row_max_height 
+                row_max_height = 0 
+            
+            # 计算每个面的相对位置
+            face_relative_pos_dict = {
+                'north': (face_depth, face_depth, face_width, face_height),
+                'south': (face_depth * 2 + face_width, face_depth, face_width, face_height),
+                'west': (0, face_depth, face_depth, face_height),
+                'east': (face_depth + face_width, face_depth, face_depth, face_height),
+                'up': (face_depth, 0, face_width, face_depth),
+                'down': (face_depth + face_width, 0, face_width, face_depth)
+            }
+
+            # 遍历处理每个面，进行绘制和UV坐标更新
+            for side in ['north', 'south', 'west', 'east', 'up', 'down']:
+                original_uv = change_(element['faces'][side]['uv'])
+                temp_picture = pil_original_texture.crop((
+                    original_uv[0], original_uv[1],
+                    original_uv[2], original_uv[3],
+                ))
+                
+                # 计算在新贴图上的绝对位置 (使用修正后的offset_x, offset_y)
+                new_x = face_relative_pos_dict[side][0] + offset_x 
+                new_y = face_relative_pos_dict[side][1] + offset_y 
+                
+                pil_new_texture.paste(temp_picture, (new_x, new_y))
+                
+                # 更新模型JSON中的UV坐标
+                data_original_bbmodel['elements'][idx]['faces'][side]['uv'] = [
+                    new_x, new_y,
+                    new_x + face_relative_pos_dict[side][2],
+                    new_y + face_relative_pos_dict[side][3]
+                ]
+            
+            # 设置方块的UV模式和UV偏移
+            data_original_bbmodel['elements'][idx]['box_uv'] = True
+            data_original_bbmodel['elements'][idx]['uv_offset'] = [offset_x, offset_y]
+        
+            # 更新下一个方块的起始X坐标
+            offset_x += box_uv_width 
+            # 更新当前行的最大高度，为下一次可能的换行做准备
+            row_max_height = max(row_max_height, box_uv_height) 
+
+            
+        data_original_bbmodel['meta']['box_uv']=True
+        
+        try:
+            with open(Entry_new_bbmodel_file.get(),'w',encoding='utf-8') as f:
+                json.dump(data_original_bbmodel,f,indent=1,ensure_ascii=False)
+        except Exception as e:
+            Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='错误',text='新bb模型文件写入失败.\n详细信息: '+str(e),icon='error')
+            Entry_new_bbmodel_file.focus_set()
+            return
+        try:
+            pil_new_texture.save(Entry_new_texture_file.get())
+        except Exception as e:
+            Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='错误',text='新贴图文件写入失败.\n详细信息: '+str(e),icon='error')
+            Entry_new_texture_file.focus_set()
+            return
+    
+        Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='信息',text='模型UV模式转换完成.',icon='info')
+
+    Window_BBmodelFaceToBoxUV.bind('<Return>',run_BBmodelFaceToBoxUV)
+    Button_start=ttk.Button(Window_BBmodelFaceToBoxUV,text='开始',default='active',command=run_BBmodelFaceToBoxUV)
+    Button_start.place(x=410,y=320,width=80,height=30)
+
+    Window_BBmodelFaceToBoxUV.iconbitmap(f"{res_icon_folder}icon.ico")
+    Window_BBmodelFaceToBoxUV.wait_window(Window_BBmodelFaceToBoxUV)
+
+def HexcolorToPixelImage():
+    def close_Window_HexcolorToPixelImage(event=None):
+        Window_HexcolorToPixelImage.destroy()
+        #sys.exit()
+    Window_HexcolorToPixelImage=tk.Toplevel(root)
+    Window_HexcolorToPixelImage.title('多行颜色数值转像素图像')
+    width=440
+    height=390
+    screenwidth = Window_HexcolorToPixelImage.winfo_screenwidth()
+    screenheight = Window_HexcolorToPixelImage.winfo_screenheight()
+    geometry = '%dx%d+%d+%d' % (width, height, (screenwidth - width) / 2, (screenheight - height) / 2)
+    Window_HexcolorToPixelImage.geometry(geometry)
+    Window_HexcolorToPixelImage.resizable(0,0)
+    Window_HexcolorToPixelImage.bind('<Escape>',close_Window_HexcolorToPixelImage)
+    Window_HexcolorToPixelImage.focus()
+
+    tk.Label(Window_HexcolorToPixelImage,text='多行颜色Hex值:',anchor='w').place(x=20,y=20,width=380,height=20)
+
+    Text_colors=tk.Text(Window_HexcolorToPixelImage,bd=1,relief='solid',font='TkDefaultFont',wrap='none')
+    Text_colors.place(x=20,y=50,width=380,height=270)
+    Text_colors.focus()
+
+    Scroll_colors_y=ttk.Scrollbar(Window_HexcolorToPixelImage,orient='vertical',command=Text_colors.yview)
+    Scroll_colors_y.place(x=400,y=50,width=20,height=270)
+
+    Text_colors.config(yscrollcommand=Scroll_colors_y.set)
+
+    def draw_colors(event=None):
+        temp_colors_list=Text_colors.get('0.0','end-1c').replace(' ','').replace('\t','').replace('#','')
+        temp_colors_list=temp_colors_list.split('\n')
+        colors_list=[]
+        for i in range(len(temp_colors_list)):
+            if temp_colors_list[i]!='':
+                colors_list.append(temp_colors_list[i])
+        
+        if len(colors_list)==0:
+            win32api.MessageBeep()
+            Text_colors.focus()
+            return
+        for i in range(len(colors_list)):
+            colors_list[i]='#'+colors_list[i]
+
+        file_path = filedialog.asksaveasfilename(parent=Window_HexcolorToPixelImage,initialfile='多行颜色数值转像素图像.png',defaultextension='.png',filetypes=[("png文件", "*.png")])
+        if file_path!='' and file_path!=None:
+            try:
+                pic=Image.new('RGB',(1,len(colors_list)),)
+                drawable_pic=ImageDraw.Draw(pic)
+
+                for i in range(len(colors_list)):
+                    drawable_pic.point((0, i), fill=str(colors_list[i]))
+
+                pic.save(file_path)
+            except Exception as e:
+                Message_Box_Auto(parent=Window_HexcolorToPixelImage,title='错误',text='绘制或保存时发生错误.\n详细信息: '+str(e),icon='error')
+                return
+            
+            Message_Box_Auto(parent=Window_HexcolorToPixelImage,title='信息',text='绘制完成.',icon='info')
+            
+
+    Button_draw_colors=ttk.Button(Window_HexcolorToPixelImage,text='绘制',default='active',command=draw_colors)
+    Button_draw_colors.place(x=340,y=340,width=80,height=30)
+    Button_draw_colors.bind('<Return>',draw_colors)
+
+    LinkLabel(Window_HexcolorToPixelImage,text='建议搭配渐变色计算器使用,点击进入.',anchor='w',url="https://photokit.com/colors/color-gradient/?lang=zh").place(x=20,y=340,width=300,height=30)
+
+    Window_HexcolorToPixelImage.iconbitmap(f"{res_icon_folder}icon.ico")
+    Window_HexcolorToPixelImage.wait_window(Window_HexcolorToPixelImage)
+
+
+
+def exit_app(event=None):
+    root.destroy()
+    sys.exit()
+root=tk.Tk()
+root.title('Modelbench-Tools')
+width=770
+height=240
+screenwidth = root.winfo_screenwidth()
+screenheight = root.winfo_screenheight()
+geometry = '%dx%d+%d+%d' % (width, height, (screenwidth - width) / 2, (screenheight - height) / 2)
+root.geometry(geometry)
+root.resizable(0,0)
+root.bind('<Escape>',exit_app)
+root.focus()
+
+Button_func_HexcolorToPixelImage=ttk.Button(root,text='mimodel贴图合并工具',command=MimodelUVMmergeTool)
+Button_func_HexcolorToPixelImage.place(x=20,y=20,width=230,height=40)
+
+Button_func_MimodelUVMmergeTool=ttk.Button(root,text='mimodelUV分离与整理',command=MimodelUVSeparationAndFinishing)
+Button_func_MimodelUVMmergeTool.place(x=270,y=20,width=230,height=40)
+
+Button_func_MimodelRenameRedDuplicateComponents=ttk.Button(root,text='mimodel重命名红色重名组件',command=MimodelRenameRedDuplicateComponents)
+Button_func_MimodelRenameRedDuplicateComponents.place(x=520,y=20,width=230,height=40)
+
+Button_func_BBmodelFaceToBoxUV=ttk.Button(root,text='bbmodelUV逐面转箱式',command=BBmodelFaceToBoxUV)
+Button_func_BBmodelFaceToBoxUV.place(x=20,y=80,width=230,height=40)
+
+Button_func_MimodelUVSeparationAndFinishing=ttk.Button(root,text='多行颜色数值转像素图像',command=HexcolorToPixelImage)
+Button_func_MimodelUVSeparationAndFinishing.place(x=270,y=80,width=230,height=40)
+
+LinkLabel(root,text='Github项目页',anchor='w',url="https://github.com/zhatujianguanzhe/modelbench-tools").place(x=20,y=140,width=150,height=30)
+
+LinkLabel(root,text='Discord伺服器',anchor='w',url='https://discord.gg/Psc5X46H').place(x=270,y=140,width=150,height=30)
+
+tk.Label(root,text='版本:1.1.0 版权:copyright © 2025-2030 炸图监管者',anchor='w').place(x=20,y=190,width=600,height=30)
+
+root.iconbitmap(res_icon_folder+'icon.ico')
+root.mainloop()
