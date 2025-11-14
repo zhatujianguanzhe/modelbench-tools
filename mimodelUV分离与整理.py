@@ -1,3 +1,4 @@
+#现在已不再更新这个文件,请转向Modelbench-Tools.py
 import json,math,pyperclip
 import sys,os,shutil
 import tkinter as tk
@@ -615,4 +616,5 @@ Button_start.place(x=410,y=370,width=80,height=30)
 
 
 root.iconbitmap(res_icon_folder+'icon.ico')
+
 root.mainloop()
