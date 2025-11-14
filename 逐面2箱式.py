@@ -1,3 +1,4 @@
+#现在已不再更新这个文件,请转向Modelbench-Tools.py
 import json
 import sys,os,shutil
 import tkinter as tk
@@ -647,4 +648,5 @@ Button_download_code.place(x=410,y=270,width=80,height=30)
 
 root.iconbitmap(f"{res_icon_folder}icon.ico")
 root.mainloop()
+
 
