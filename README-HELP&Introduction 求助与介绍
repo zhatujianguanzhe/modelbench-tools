@@ -3,18 +3,21 @@ I want to promote my free tool here.
 Is there anyone who could help me by creating a cover and promoting this tool? Consider it a little contribution for love! I’d be super grateful!
 
 This tool integrates five functions:
-
 mimodel texture merging: Combines multiple textures into a single one, ensuring the model displays correctly.
-
 mimodel UV separation and organization: Organizes scattered UV layouts into neat, orderly ones, making the texture look cleaner!
-
 mimodel renaming red overlapping parts: Removes all the red-highlighted parts that look uncomfortable, making it more pleasant for those with OCD!
-
 bbmodel UV face-to-box conversion: Converts the face-by-face UV of bbmodel into box UVs, enabling further conversion into mimodel using the bb built-in plugin, seamlessly transferring from bb to mi.
-
 Multi-line color value to pixel art image: Converts rows of hexadecimal colors outputted by the gradient color calculator into an image, eliminating the need to manually input each one!
 
 Link: github.com/zhatujianguanzhe/modelbench-tools/
-
 Even though it’s in Chinese, you can download the source code (Modelbench-Tools.py) and use AI translation. It’s super fast!
 If anyone is willing to help, please contact me via private message or email. Don’t forget to replace the numbers with digits! ①③②③⑦③⑧⑦⑦⑧@QQ.COM
+
+在这里宣传一下我的免费工具 有没有人能救一下,做个封面,宣传一下我这个工具,就当是为爱发电了!万分感谢! 这个工具整合了五个功能: 
+1.mimodel贴图合并:将多个贴图合并为单个贴图,同时让模型能够正常显示 2.mimodelUV分离与整理:将排布杂乱的UV整理的井井有条,让贴图看着更清爽! 
+3.mimodel重命名红色重名部件:消除所有看着难受的红色字部件,让强迫症舒服! 
+4.bbmodelUV逐面转箱式:将bbmodel的逐面UV转为箱式UV,这样就能用bb内置插件进一步转换为mimodel,实现bb->mi无缝操作 
+5.多行颜色数值转像素图象:将渐变色运算器输出的一行行的十六进制颜色转换为图像,无需一个个手动填写! 
+链接 github.com/zhatujianguanzhe/modelbench-tools/ 
+即使他是中文的,你也可以下载源代码(Modelbench-Tools.py)并使用AI进行翻译,这很快捷
+如果有人愿意,请与我私信或电子邮件联系,记得把序号改换为数字! ①③②③⑦③⑧⑦⑦⑧@QQ.COM
