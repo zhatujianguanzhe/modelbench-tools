@@ -1,0 +1,20 @@
+I want to promote my free tool here.
+
+Is there anyone who could help me by creating a cover and promoting this tool? Consider it a little contribution for love! I’d be super grateful!
+
+This tool integrates five functions:
+
+mimodel texture merging: Combines multiple textures into a single one, ensuring the model displays correctly.
+
+mimodel UV separation and organization: Organizes scattered UV layouts into neat, orderly ones, making the texture look cleaner!
+
+mimodel renaming red overlapping parts: Removes all the red-highlighted parts that look uncomfortable, making it more pleasant for those with OCD!
+
+bbmodel UV face-to-box conversion: Converts the face-by-face UV of bbmodel into box UVs, enabling further conversion into mimodel using the bb built-in plugin, seamlessly transferring from bb to mi.
+
+Multi-line color value to pixel art image: Converts rows of hexadecimal colors outputted by the gradient color calculator into an image, eliminating the need to manually input each one!
+
+Link: github.com/zhatujianguanzhe/modelbench-tools/
+
+Even though it’s in Chinese, you can download the source code (Modelbench-Tools.py) and use AI translation. It’s super fast!
+If anyone is willing to help, please contact me via private message or email. Don’t forget to replace the numbers with digits! ①③②③⑦③⑧⑦⑦⑧@QQ.COM
