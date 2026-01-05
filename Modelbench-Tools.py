@@ -1926,38 +1926,62 @@ def BBmodelFaceToBoxUV():
 
             #检查开始,只处理文本.
             #处理项目: elements►<>►faces►<>►uv中的UV拉伸,让其与
+
             for i in data_original_bbmodel['elements']:
                 block_size=(i['to'][0]-i['from'][0],i['to'][1]-i['from'][1],i['to'][2]-i['from'][2])
                 block_name=i['name']
-
+                dont_show_again=False
                 for face_name, face_data in i['faces'].items():
                     #face_name指的是朝向而非名字
                     face_size=(face_data['uv'][2]-face_data['uv'][0],face_data['uv'][3]-face_data['uv'][1])
                     if face_name=='north':
                         if face_size[0]!=block_size[0] or face_size[1]!=block_size[1]:
-                            if Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='警告',text=f'方块 {block_name} 的 north 面出现拉伸错误,会导致贴图错误.',buttonmode=2,defaultfocus=1,show_checkbutton=True,icon='warning',text_true='忽略',text_false='终止')==False:
+                            if dont_show_again==True:
+                                pass
+                            elif Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='警告',text=f'方块 {block_name} 的 north 面出现拉伸错误,会导致贴图错误.\n(后续不会再提示.)',buttonmode=2,defaultfocus=1,icon='warning',text_true='忽略',text_false='终止')==False:
                                 return
-                    
+                            else:
+                                dont_show_again=True
                     elif face_name=='south':
                         if face_size[0]!=block_size[0] or face_size[1]!=block_size[1]:
-                            if Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='警告',text=f'方块 {block_name} 的 south 面出现拉伸错误,会导致贴图错误.',buttonmode=2,defaultfocus=1,show_checkbutton=True,icon='warning',text_true='忽略',text_false='终止')==False:
+                            if dont_show_again==True:
+                                pass
+                            elif  Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='警告',text=f'方块 {block_name} 的 south 面出现拉伸错误,会导致贴图错误.\n(后续不会再提示.)',buttonmode=2,defaultfocus=1,icon='warning',text_true='忽略',text_false='终止')==False:
                                 return
+                            else:
+                                dont_show_again=True
                     elif face_name=='east':
                         if face_size[0]!=block_size[2] or face_size[1]!=block_size[1]:
-                            if Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='警告',text=f'方块 {block_name} 的 east 面出现拉伸错误,会导致贴图错误.',buttonmode=2,defaultfocus=1,show_checkbutton=True,icon='warning',text_true='忽略',text_false='终止')==False:
+                            if dont_show_again==True:
+                                pass
+                            elif  Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='警告',text=f'方块 {block_name} 的 east 面出现拉伸错误,会导致贴图错误.\n(后续不会再提示.)',buttonmode=2,defaultfocus=1,icon='warning',text_true='忽略',text_false='终止')==False:
                                 return
+                            else:
+                                dont_show_again=True
                     elif face_name=='west':
                         if face_size[0]!=block_size[2] or face_size[1]!=block_size[1]:
-                            if Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='警告',text=f'方块 {block_name} 的 west 面出现拉伸错误,会导致贴图错误.',buttonmode=2,defaultfocus=1,show_checkbutton=True,icon='warning',text_true='忽略',text_false='终止')==False:
+                            if dont_show_again==True:
+                                pass
+                            elif Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='警告',text=f'方块 {block_name} 的 west 面出现拉伸错误,会导致贴图错误.\n(后续不会再提示.)',buttonmode=2,defaultfocus=1,icon='warning',text_true='忽略',text_false='终止')==False:
                                 return
+                            else:
+                                dont_show_again=True
                     elif face_name=='up':
                         if abs(face_size[0])!=block_size[0] or abs(face_size[1])!=block_size[2]:
-                            if Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='警告',text=f'方块 {block_name} 的 up 面出现拉伸错误,会导致贴图错误.',buttonmode=2,defaultfocus=1,show_checkbutton=True,icon='warning',text_true='忽略',text_false='终止')==False:
+                            if dont_show_again==True:
+                                pass
+                            elif Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='警告',text=f'方块 {block_name} 的 up 面出现拉伸错误,会导致贴图错误.\n(后续不会再提示.)',buttonmode=2,defaultfocus=1,icon='warning',text_true='忽略',text_false='终止')==False:
                                 return
+                            else:
+                                dont_show_again=True
                     elif face_name=='down':
                         if abs(face_size[0])!=block_size[0] or abs(face_size[1])!=block_size[2]:
-                            if Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='警告',text=f'方块 {block_name} 的 down 面出现拉伸错误,会导致贴图错误.',buttonmode=2,defaultfocus=1,show_checkbutton=True,icon='warning',text_true='忽略',text_false='终止')==False:
+                            if dont_show_again==True:
+                                pass
+                            elif Message_Box_Auto(parent=Window_BBmodelFaceToBoxUV,title='警告',text=f'方块 {block_name} 的 down 面出现拉伸错误,会导致贴图错误.\n(后续不会再提示.)',buttonmode=2,defaultfocus=1,icon='warning',text_true='忽略',text_false='终止')==False:
                                 return
+                            else:
+                                dont_show_again=True
 
             #检查结束
             #数据转换开始
